@@ -274,8 +274,8 @@ class QwenReranker:
         # Compute probability of "yes"
         probs = torch.sigmoid(true_logits - false_logits)
         
-        # Binary cross-entropy loss
-        loss = F.binary_cross_entropy(probs, labels.float())
+        # Binary cross-entropy loss (match dtype to model's dtype)
+        loss = F.binary_cross_entropy(probs, labels.to(probs.dtype))
         
         return loss
     
