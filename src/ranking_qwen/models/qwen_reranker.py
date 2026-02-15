@@ -271,11 +271,14 @@ class QwenReranker:
         true_logits = logits[:, self.token_true_id]
         false_logits = logits[:, self.token_false_id]
         
-        # Compute probability of "yes"
-        probs = torch.sigmoid(true_logits - false_logits)
+        # Compute logit difference (more stable than sigmoid then BCE)
+        logit_diff = true_logits - false_logits
         
-        # Binary cross-entropy loss (match dtype to model's dtype)
-        loss = F.binary_cross_entropy(probs, labels.to(probs.dtype))
+        # Binary cross-entropy with logits (numerically stable)
+        loss = F.binary_cross_entropy_with_logits(
+            logit_diff, 
+            labels.to(logit_diff.dtype)
+        )
         
         return loss
     
