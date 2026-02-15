@@ -40,9 +40,10 @@ class QwenRerankerModel(torch.nn.Module):
     
     def __init__(self, model_name: str):
         super().__init__()
+        # Load in FP32 - Trainer will handle FP16/BF16 conversion automatically
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float16,
+            torch_dtype=torch.float32,
             trust_remote_code=True,
         )
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -216,8 +217,8 @@ def main():
         weight_decay=0.01,
         max_grad_norm=1.0,
         
-        # Mixed precision (automatic!)
-        fp16=True,
+        # Mixed precision (automatic!) - BF16 is more stable on A100
+        bf16=True,  # Use bf16 on A100 (more stable than fp16)
         
         # Logging
         logging_steps=50,
