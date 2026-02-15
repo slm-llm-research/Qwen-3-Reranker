@@ -41,6 +41,7 @@ def main():
     model = QwenReranker(
         model_name="Qwen/Qwen3-Reranker-0.6B",
         use_flash_attn=False,  # Set True if you have flash-attn installed
+        torch_dtype=torch.float32,  # Use FP32 for stability
     )
     
     # 3. Prepare data
@@ -115,8 +116,17 @@ def main():
             
             loss = model.compute_loss(input_ids, attention_mask, labels)
             
+            # Check for NaN
+            if torch.isnan(loss):
+                print(f"\nWarning: NaN loss detected at step {step+1}")
+                print(f"  Labels: {labels}")
+                print(f"  Skipping this batch...")
+                continue
+            
             # Backward pass
             loss.backward()
+            
+            # Clip gradients
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             
             optimizer.step()
