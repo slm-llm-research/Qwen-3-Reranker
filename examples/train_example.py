@@ -1,30 +1,90 @@
 #!/usr/bin/env python3
 """
-Example: Quick start for training Qwen3-Reranker.
+Example: Quick start for training Qwen3-Reranker using HuggingFace Trainer.
 
 This script demonstrates minimal setup for training a reranker model.
-For full options, see scripts/train_reranker.py or RERANKER_TRAINING_GUIDE.md
+Uses HuggingFace Trainer for simplicity and robustness.
 """
 
 import sys
 from pathlib import Path
+from typing import Dict
+
+import torch
+import torch.nn.functional as F
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    Trainer,
+    TrainingArguments,
+)
+from datasets import load_dataset
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.ranking_qwen.models import QwenReranker
 from src.ranking_qwen.data import RerankerDatasetPreparator
-from datasets import load_dataset
-import torch
-from torch.optim import AdamW
-from transformers import get_linear_schedule_with_warmup
+from src.ranking_qwen.models import create_data_collator
+
+
+class QwenRerankerModel(torch.nn.Module):
+    """Wrapper model for Qwen3-Reranker with HuggingFace Trainer."""
+    
+    def __init__(self, model_name: str):
+        super().__init__()
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16,
+            trust_remote_code=True,
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            padding_side='left',
+            trust_remote_code=True
+        )
+        
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        # Get yes/no token IDs
+        self.token_true_id = self.tokenizer.convert_tokens_to_ids('yes')
+        self.token_false_id = self.tokenizer.convert_tokens_to_ids('no')
+        
+        print(f"  Token 'yes' ID: {self.token_true_id}")
+        print(f"  Token 'no' ID: {self.token_false_id}")
+    
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        """Forward pass - returns dict with 'loss' key."""
+        # Forward through model
+        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+        logits = outputs.logits[:, -1, :]  # Last token logits
+        
+        # Extract yes/no logits
+        true_logits = logits[:, self.token_true_id]
+        false_logits = logits[:, self.token_false_id]
+        
+        # Compute logit difference
+        logit_diff = true_logits - false_logits
+        
+        # Binary cross-entropy with logits (numerically stable)
+        loss = F.binary_cross_entropy_with_logits(
+            logit_diff,
+            labels.to(logit_diff.dtype)
+        )
+        
+        return {"loss": loss}
 
 
 def main():
-    """Train a small reranker model."""
+    """Train a small reranker model using HuggingFace Trainer."""
     
     print("=" * 60)
-    print("Qwen3-Reranker Training Example")
+    print("Qwen3-Reranker Training Example (HuggingFace Trainer)")
     print("=" * 60)
     
     # 1. Load dataset
@@ -38,16 +98,13 @@ def main():
     
     # 2. Initialize model
     print("\n2. Loading Qwen3-Reranker-0.6B...")
-    model = QwenReranker(
-        model_name="Qwen/Qwen3-Reranker-0.6B",
-        use_flash_attn=False,  # Set True if you have flash-attn installed
-        torch_dtype=torch.float32,  # Use FP32 for stability
-    )
+    model = QwenRerankerModel("Qwen/Qwen3-Reranker-0.6B")
+    tokenizer = model.tokenizer
     
     # 3. Prepare data
     print("\n3. Preparing dataset...")
     preparator = RerankerDatasetPreparator(
-        tokenizer=model.get_tokenizer(),
+        tokenizer=tokenizer,
         relevance_threshold=2.33,
         max_description_tokens=350,
     )
@@ -59,113 +116,74 @@ def main():
         test_ratio=0.15,
     )
     
-    # 4. Create dataloaders
-    print("\n4. Creating dataloaders...")
-    from ranking_qwen.models import create_data_collator
-    from torch.utils.data import DataLoader
+    # 4. Setup Trainer
+    print("\n4. Setting up HuggingFace Trainer...")
     
-    collate_fn = create_data_collator(model.get_tokenizer())
-    
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=2,
-        shuffle=True,
-        collate_fn=collate_fn,
-        drop_last=True,
+    training_args = TrainingArguments(
+        output_dir="models/example_checkpoint",
+        num_train_epochs=2,
+        per_device_train_batch_size=2,
+        per_device_eval_batch_size=2,
+        gradient_accumulation_steps=4,
+        learning_rate=2e-5,
+        warmup_ratio=0.1,
+        weight_decay=0.01,
+        max_grad_norm=1.0,
+        
+        # Mixed precision (automatic!)
+        fp16=True,
+        
+        # Logging
+        logging_steps=10,
+        
+        # Evaluation
+        eval_strategy="epoch",
+        save_strategy="epoch",
+        save_total_limit=2,
+        load_best_model_at_end=True,
+        
+        # Other
+        remove_unused_columns=False,
+        report_to="none",
     )
     
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=2,
-        shuffle=False,
-        collate_fn=collate_fn,
+    # Data collator
+    data_collator = create_data_collator(tokenizer)
+    
+    # Initialize Trainer
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        data_collator=data_collator,
     )
     
-    # 5. Setup optimizer
-    print("\n5. Setting up optimizer...")
-    optimizer = AdamW(model.parameters(), lr=5e-6, weight_decay=0.01)
-    
-    num_epochs = 2
-    total_steps = len(train_loader) * num_epochs
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=int(0.1 * total_steps),
-        num_training_steps=total_steps,
-    )
-    
-    # 6. Training loop
-    print("\n6. Training...")
-    print(f"   Epochs: {num_epochs}")
-    print(f"   Steps per epoch: {len(train_loader)}")
-    print(f"   Total steps: {total_steps}")
+    # 5. Train
+    print("\n5. Training...")
+    print(f"   Train samples: {len(train_dataset)}")
+    print(f"   Val samples: {len(val_dataset)}")
+    print(f"   Effective batch size: {2 * 4}")
     print()
     
-    model.train()
+    trainer.train()
     
-    for epoch in range(num_epochs):
-        print(f"\nEpoch {epoch + 1}/{num_epochs}")
-        print("-" * 60)
-        
-        total_loss = 0.0
-        
-        for step, batch in enumerate(train_loader):
-            # Forward pass
-            input_ids = batch['input_ids'].to(model.device)
-            attention_mask = batch['attention_mask'].to(model.device)
-            labels = batch['labels'].to(model.device)
-            
-            loss = model.compute_loss(input_ids, attention_mask, labels)
-            
-            # Check for NaN
-            if torch.isnan(loss):
-                print(f"\nWarning: NaN loss detected at step {step+1}")
-                print(f"  Labels: {labels}")
-                print(f"  Skipping this batch...")
-                continue
-            
-            # Backward pass
-            loss.backward()
-            
-            # Clip gradients
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-            
-            total_loss += loss.item()
-            
-            if (step + 1) % 10 == 0:
-                avg_loss = total_loss / (step + 1)
-                print(f"  Step {step + 1}/{len(train_loader)} | Loss: {avg_loss:.4f}")
-        
-        # Validation
-        model.eval()
-        val_loss = 0.0
-        
-        with torch.no_grad():
-            for batch in val_loader:
-                input_ids = batch['input_ids'].to(model.device)
-                attention_mask = batch['attention_mask'].to(model.device)
-                labels = batch['labels'].to(model.device)
-                
-                loss = model.compute_loss(input_ids, attention_mask, labels)
-                val_loss += loss.item()
-        
-        avg_val_loss = val_loss / len(val_loader) if len(val_loader) > 0 else 0.0
-        print(f"\nValidation loss: {avg_val_loss:.4f}")
-        
-        model.train()
-    
-    # 7. Save model
-    print("\n7. Saving model...")
-    output_path = "models/example_checkpoint"
-    model.save_model(output_path)
+    # 6. Save model
+    print("\n6. Saving model...")
+    output_path = "models/example_checkpoint/final_model"
+    trainer.save_model(output_path)
+    tokenizer.save_pretrained(output_path)
     print(f"   Saved to {output_path}")
     
-    # 8. Test inference
-    print("\n8. Testing inference...")
-    model.eval()
+    # 7. Test inference
+    print("\n7. Testing inference...")
+    
+    # Load the trained model for inference
+    from src.ranking_qwen.models import QwenReranker
+    
+    reranker = QwenReranker(model_name="Qwen/Qwen3-Reranker-0.6B")
+    reranker.load_checkpoint(output_path)
+    reranker.eval()
     
     query = "drill bits"
     documents = [
@@ -174,7 +192,7 @@ def main():
         "Black+Decker Screwdriver Set - 20 pieces",
     ]
     
-    scores = model.compute_scores(
+    scores = reranker.compute_scores(
         queries=[query] * len(documents),
         documents=documents,
     )
@@ -190,9 +208,9 @@ def main():
     print("Training completed successfully!")
     print("=" * 60)
     print("\nNext steps:")
-    print("  - Run full training: python scripts/train_reranker.py --help")
+    print("  - Run full training: python scripts/train_reranker_hf.py")
     print("  - Evaluate model: python scripts/evaluate_reranker.py --help")
-    print("  - Read guide: RERANKER_TRAINING_GUIDE.md")
+    print("  - Read guide: TRAINING_GUIDE.md")
 
 
 if __name__ == "__main__":
