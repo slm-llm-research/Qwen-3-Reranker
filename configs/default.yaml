@@ -1,0 +1,63 @@
+# Default configuration for Ranking-Qwen
+
+# Data configuration
+data:
+  data_dir: "data"
+  dataset_name: "bstds/home_depot"
+  default_format: "parquet"
+  save_formats:
+    - "csv"
+    - "parquet"
+    - "json"
+
+# Preprocessing configuration
+preprocessing:
+  clean_text: true
+  create_combined_text: true
+  create_labels: false
+  num_classes: 3
+  create_features: true
+  text_max_length: 512
+
+# Train/Test split configuration
+split:
+  test_size: 0.2
+  random_state: 42
+  group_by_query: true
+
+# Model configuration
+model:
+  type: "baseline"  # Options: baseline, bert, roberta, custom
+  checkpoint: null
+  max_length: 128
+  batch_size: 32
+  learning_rate: 2e-5
+  num_epochs: 3
+
+# Evaluation configuration
+evaluation:
+  metrics:
+    - "rmse"
+    - "mae"
+    - "ndcg"
+  ndcg_k_values:
+    - 1
+    - 3
+    - 5
+    - 10
+  group_by_query: true
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  log_dir: "logs"
+  log_file: null  # Set to filename to enable file logging
+
+# Paths configuration
+paths:
+  data_dir: "data"
+  models_dir: "models"
+  logs_dir: "logs"
+  results_dir: "results"
+  cache_dir: ".cache"

@@ -1,0 +1,25 @@
+# Core dependencies for Ranking-Qwen
+datasets>=4.0.0
+pandas>=2.0.0
+pyarrow>=12.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+pyyaml>=6.0
+tqdm>=4.60.0
+huggingface-hub>=0.16.0
+
+# Deep learning dependencies for Qwen3-Reranker
+torch>=2.0.0
+transformers>=4.51.0
+accelerate>=0.20.0
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# Optional for performance
+# flash-attn>=2.0.0  # requires CUDA, install separately: pip install flash-attn --no-build-isolation
+tensorboard>=2.12.0
+wandb>=0.15.0
+
+# Optional for advanced training
+# peft>=0.5.0  # for LoRA/QLoRA
+# bitsandbytes>=0.41.0  # for quantization

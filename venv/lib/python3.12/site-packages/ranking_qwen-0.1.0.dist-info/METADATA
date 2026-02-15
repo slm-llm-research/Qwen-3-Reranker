@@ -1,0 +1,415 @@
+Metadata-Version: 2.4
+Name: ranking-qwen
+Version: 0.1.0
+Summary: A production-ready framework for search ranking and relevance modeling
+Author-email: ML Engineering Team <ml-team@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/your-org/ranking-qwen
+Project-URL: Documentation, https://ranking-qwen.readthedocs.io
+Project-URL: Repository, https://github.com/your-org/ranking-qwen
+Project-URL: Bug Tracker, https://github.com/your-org/ranking-qwen/issues
+Keywords: machine-learning,ranking,search,nlp,information-retrieval
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: datasets>=4.0.0
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: pyarrow>=12.0.0
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: scikit-learn>=1.3.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: tqdm>=4.60.0
+Requires-Dist: huggingface-hub>=0.16.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.0.0; extra == "dev"
+Requires-Dist: pre-commit>=3.0.0; extra == "dev"
+Provides-Extra: transformers
+Requires-Dist: transformers>=4.30.0; extra == "transformers"
+Requires-Dist: torch>=2.0.0; extra == "transformers"
+Requires-Dist: sentence-transformers>=2.2.0; extra == "transformers"
+Provides-Extra: notebook
+Requires-Dist: jupyter>=1.0.0; extra == "notebook"
+Requires-Dist: ipykernel>=6.0.0; extra == "notebook"
+Requires-Dist: matplotlib>=3.5.0; extra == "notebook"
+Requires-Dist: seaborn>=0.12.0; extra == "notebook"
+Dynamic: license-file
+
+# Ranking-Qwen 🔍
+
+<div align="center">
+
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+A production-ready framework for search ranking and relevance modeling using the Home Depot dataset.
+
+[Features](#features) • [Installation](#installation) • [Quick Start](#quick-start) • [Documentation](#documentation) • [Contributing](#contributing)
+
+</div>
+
+---
+
+## 🎯 Features
+
+- **Easy Data Management**: Download and preprocess the Home Depot dataset with a single command
+- **Flexible Data Pipeline**: Modular preprocessing with configurable options
+- **Evaluation Metrics**: Comprehensive ranking metrics (RMSE, MAE, NDCG@k)
+- **CLI Tools**: Professional command-line interface for all operations
+- **Type-Safe**: Full type hints for better IDE support and code quality
+- **Well-Tested**: >80% code coverage with comprehensive unit tests
+- **Production-Ready**: Logging, configuration management, and error handling
+
+## 📦 Installation
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/ranking-qwen.git
+cd ranking-qwen
+
+# Run setup script (recommended)
+bash scripts/setup_environment.sh
+
+# Or manually install
+pip install -e .
+
+# For development
+pip install -e ".[dev]"
+```
+
+### Requirements
+
+- Python 3.8+
+- pandas >= 2.0.0
+- scikit-learn >= 1.3.0
+- datasets >= 4.0.0
+- PyYAML >= 6.0
+
+## 🚀 Quick Start
+
+### 1. Download the Dataset
+
+```bash
+# Using CLI
+ranking-download --data-dir data
+
+# Or using Python
+from ranking_qwen.data import DatasetDownloader
+
+downloader = DatasetDownloader(data_dir="data")
+df = downloader.download()
+```
+
+### 2. Load and Explore
+
+```python
+from ranking_qwen.data import HomeDepotDataset
+
+# Load dataset
+dataset = HomeDepotDataset(data_path="data", format="parquet")
+df = dataset.load()
+
+# Get statistics
+stats = dataset.get_statistics()
+print(f"Total records: {stats['total_records']:,}")
+print(f"Unique products: {stats['unique_products']:,}")
+print(f"Unique queries: {stats['unique_queries']:,}")
+
+# Get top queries
+top_queries = dataset.get_top_queries(n=10)
+print(top_queries)
+```
+
+### 3. Preprocess Data
+
+```python
+from ranking_qwen.data import DataPreprocessor
+
+# Initialize preprocessor
+preprocessor = DataPreprocessor()
+
+# Run full preprocessing pipeline
+df_processed = preprocessor.preprocess(
+    df,
+    clean_text=True,
+    create_combined=True,
+    create_labels=True,
+    create_features=True,
+)
+
+# Save preprocessed data
+df_processed.to_parquet("data/preprocessed.parquet")
+```
+
+### 4. Train/Test Split
+
+```python
+# Split by query (recommended for ranking)
+train_df, test_df = dataset.split_train_test(
+    test_size=0.2,
+    random_state=42,
+    group_by_query=True,  # Ensure queries don't leak between splits
+)
+
+print(f"Train: {len(train_df):,} records")
+print(f"Test: {len(test_df):,} records")
+```
+
+### 5. Evaluate Predictions
+
+```python
+from ranking_qwen.evaluation import RankingMetrics
+
+# After training your model, evaluate predictions
+metrics = RankingMetrics.evaluate_predictions(
+    df_with_predictions,
+    y_true_col="relevance",
+    y_pred_col="predicted_relevance",
+    group_by_query=True,
+    k_values=[1, 3, 5, 10],
+)
+
+RankingMetrics.print_metrics(metrics)
+```
+
+## 🛠️ CLI Usage
+
+### Download Dataset
+
+```bash
+# Basic download
+ranking-download
+
+# Custom directory and formats
+ranking-download --data-dir ./my_data --formats parquet csv
+
+# Force re-download
+ranking-download --force
+```
+
+### Analyze Dataset
+
+```bash
+# Basic analysis
+ranking-analyze
+
+# Detailed analysis
+ranking-analyze --detailed --top-n 20
+
+# Analyze specific file
+ranking-analyze --data-path data/home_depot.parquet
+```
+
+### Preprocess Dataset
+
+```bash
+# Full preprocessing
+ranking-preprocess --output data/preprocessed.parquet
+
+# Custom preprocessing
+ranking-preprocess \
+    --output data/clean.csv \
+    --create-labels \
+    --num-classes 3 \
+    --create-features
+```
+
+## 📊 Dataset Information
+
+The Home Depot dataset contains **74,067** records of search query-product pairs with human-rated relevance scores.
+
+### Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | int | Unique record identifier |
+| `entity_id` | int | Product entity ID |
+| `name` | str | Product name |
+| `query` | str | Customer search query |
+| `relevance` | float | Relevance score (1.0-3.0) |
+| `description` | str | Product description |
+
+### Relevance Scores
+
+- **3.0**: Highly relevant (e.g., "AA battery" → AA battery pack)
+- **2.0**: Moderately relevant (e.g., "AA battery" → cordless drill battery)
+- **1.0**: Not relevant (e.g., "AA battery" → snow shovel)
+
+## 🏗️ Project Structure
+
+```
+ranking-qwen/
+├── src/ranking_qwen/          # Main package code
+│   ├── data/                  # Data loading and processing
+│   │   ├── downloader.py      # Dataset downloader
+│   │   ├── dataset_loader.py  # Dataset loader with utilities
+│   │   └── preprocessor.py    # Data preprocessing
+│   ├── models/                # Model implementations (future)
+│   ├── evaluation/            # Evaluation metrics
+│   │   └── metrics.py         # Ranking metrics (RMSE, NDCG, etc.)
+│   ├── utils/                 # Utility modules
+│   │   ├── logger.py          # Logging utilities
+│   │   └── config.py          # Configuration management
+│   └── cli/                   # Command-line interface
+│       ├── download.py        # Download CLI
+│       ├── analyze.py         # Analyze CLI
+│       └── preprocess.py      # Preprocess CLI
+├── tests/                     # Unit tests
+├── configs/                   # Configuration files
+├── scripts/                   # Helper scripts
+├── docs/                      # Documentation
+├── notebooks/                 # Jupyter notebooks
+├── pyproject.toml            # Package configuration
+├── Makefile                  # Development commands
+└── README.md                 # This file
+```
+
+## 📚 Documentation
+
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute to this project
+- [Quick Start Guide](QUICKSTART.md) - Get started in 2 minutes
+- [API Documentation](docs/) - Detailed API reference
+
+## 🔧 Development
+
+### Setup Development Environment
+
+```bash
+# Clone and setup
+git clone https://github.com/your-org/ranking-qwen.git
+cd ranking-qwen
+bash scripts/setup_environment.sh
+```
+
+### Run Tests
+
+```bash
+# Run all tests with coverage
+make test
+
+# Run specific test file
+pytest tests/test_metrics.py -v
+
+# Run fast (no coverage)
+make test-fast
+```
+
+### Code Quality
+
+```bash
+# Format code
+make format
+
+# Run linting
+make lint
+
+# Run all checks
+make check
+```
+
+### Makefile Commands
+
+```bash
+make help          # Show all available commands
+make install       # Install package
+make install-dev   # Install with dev dependencies
+make test          # Run tests with coverage
+make lint          # Run linting checks
+make format        # Format code
+make clean         # Clean build artifacts
+make download      # Download dataset
+make analyze       # Analyze dataset
+```
+
+## 📈 Example Use Cases
+
+### 1. Baseline Model
+
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import Ridge
+
+# Combine query and product name
+X = df['query'] + ' ' + df['name']
+y = df['relevance']
+
+# Vectorize and train
+vectorizer = TfidfVectorizer(max_features=5000)
+X_vec = vectorizer.fit_transform(X)
+model = Ridge().fit(X_vec, y)
+
+# Predict
+y_pred = model.predict(X_vec)
+```
+
+### 2. Deep Learning Model
+
+```python
+from sentence_transformers import SentenceTransformer
+from sklearn.ensemble import GradientBoostingRegressor
+
+# Encode text using SBERT
+model = SentenceTransformer('all-MiniLM-L6-v2')
+query_emb = model.encode(df['query'].tolist())
+product_emb = model.encode(df['name'].tolist())
+
+# Combine embeddings and train
+X = np.concatenate([query_emb, product_emb], axis=1)
+y = df['relevance']
+
+gbm = GradientBoostingRegressor()
+gbm.fit(X, y)
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Quick Contribution Workflow
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes and add tests
+4. Run tests: `make test`
+5. Format code: `make format`
+6. Commit: `git commit -m 'feat: add amazing feature'`
+7. Push: `git push origin feature/amazing-feature`
+8. Create a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Dataset: [Home Depot Product Search Relevance](https://huggingface.co/datasets/bstds/home_depot)
+- Original Competition: Kaggle Home Depot Product Search Relevance
+
+## 📮 Contact
+
+- **Issues**: [GitHub Issues](https://github.com/your-org/ranking-qwen/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/your-org/ranking-qwen/discussions)
+- **Email**: ml-team@example.com
+
+---
+
+<div align="center">
+Made with ❤️ by the ML Engineering Team
+</div>

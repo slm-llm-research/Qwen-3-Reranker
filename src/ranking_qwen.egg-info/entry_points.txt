@@ -1,0 +1,4 @@
+[console_scripts]
+ranking-analyze = ranking_qwen.cli.analyze:main
+ranking-download = ranking_qwen.cli.download:main
+ranking-preprocess = ranking_qwen.cli.preprocess:main
