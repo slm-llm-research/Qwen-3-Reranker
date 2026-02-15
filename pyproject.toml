@@ -60,9 +60,6 @@ notebook = [
 ]
 
 [project.scripts]
-ranking-download = "ranking_qwen.cli.download:main"
-ranking-analyze = "ranking_qwen.cli.analyze:main"
-ranking-preprocess = "ranking_qwen.cli.preprocess:main"
 ranking-train = "ranking_qwen.cli.train:train_cli"
 ranking-evaluate = "ranking_qwen.cli.evaluate:evaluate_cli"
 
