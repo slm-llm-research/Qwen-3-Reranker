@@ -38,12 +38,13 @@ logger = get_logger(__name__)
 class QwenRerankerModel(torch.nn.Module):
     """Wrapper model for Qwen3-Reranker with HuggingFace Trainer."""
     
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, use_bf16: bool = True):
         super().__init__()
-        # Load in FP32 - Trainer will handle FP16/BF16 conversion automatically
+        # Load in BF16 for A100 (or FP16 for other GPUs)
+        dtype = torch.bfloat16 if use_bf16 else torch.float16
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.float32,
+            torch_dtype=dtype,
             trust_remote_code=True,
         )
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -224,7 +225,7 @@ def main():
     
     # 2. Initialize model and tokenizer
     logger.info("\n2. Loading model...")
-    model = QwenRerankerModel(args.model_name)
+    model = QwenRerankerModel(args.model_name, use_bf16=True)  # Use BF16 for A100
     tokenizer = model.tokenizer
     
     # 3. Prepare datasets
