@@ -108,6 +108,25 @@ def parse_args():
         help="Model to use"
     )
     
+    # Logging arguments
+    parser.add_argument(
+        "--use_wandb",
+        action="store_true",
+        help="Enable Weights & Biases logging"
+    )
+    parser.add_argument(
+        "--wandb_project",
+        type=str,
+        default="qwen3-reranker-finetuning",
+        help="WandB project name"
+    )
+    parser.add_argument(
+        "--wandb_run_name",
+        type=str,
+        default=None,
+        help="WandB run name (default: auto-generated)"
+    )
+    
     # Data arguments
     parser.add_argument(
         "--data_path",
@@ -166,12 +185,33 @@ def parse_args():
 def main():
     args = parse_args()
     
+    # Setup WandB if requested
+    if args.use_wandb:
+        import wandb
+        import os
+        
+        # Set WandB API key from environment or default
+        wandb_token = os.environ.get("WANDB_API_KEY")
+        if wandb_token:
+            wandb.login(key=wandb_token)
+            logger.info("✓ WandB authentication successful")
+        
+        # Initialize WandB run
+        run_name = args.wandb_run_name or f"{args.model_name.split('/')[-1]}-lr{args.learning_rate}"
+        wandb.init(
+            project=args.wandb_project,
+            name=run_name,
+            config=vars(args),
+        )
+        logger.info(f"✓ WandB run initialized: {run_name}")
+    
     logger.info("=" * 60)
     logger.info("Qwen3-Reranker Training (HuggingFace Trainer)")
     logger.info("=" * 60)
     logger.info(f"Model: {args.model_name}")
     logger.info(f"Data: {args.data_path}")
     logger.info(f"Output: {args.output_dir}")
+    logger.info(f"WandB: {'Enabled' if args.use_wandb else 'Disabled'}")
     
     # 1. Load dataset
     logger.info("\n1. Loading dataset...")
@@ -237,7 +277,8 @@ def main():
         
         # Other
         remove_unused_columns=False,
-        report_to="none",  # Change to "tensorboard" or "wandb" if you want
+        report_to="wandb" if args.use_wandb else "none",
+        run_name=args.wandb_run_name if args.use_wandb else None
     )
     
     # Data collator
@@ -276,6 +317,12 @@ def main():
     logger.info("Training completed!")
     logger.info(f"Model saved to: {args.output_dir}/final_model")
     logger.info("=" * 60)
+    
+    # Finish WandB run
+    if args.use_wandb:
+        import wandb
+        wandb.finish()
+        logger.info("✓ WandB run finished")
 
 
 if __name__ == "__main__":
