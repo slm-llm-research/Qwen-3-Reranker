@@ -11,6 +11,7 @@ This script:
 import argparse
 import os
 from pathlib import Path
+import torch
 from huggingface_hub import HfApi, create_repo
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -262,7 +263,6 @@ def push_to_hub(
     model.push_to_hub(
         repo_id=repo_name,
         token=hf_token,
-        safe_serialization=True,
         commit_message="Upload fine-tuned Qwen3-Reranker for Home Depot search"
     )
     print("   ✓ Model pushed")
