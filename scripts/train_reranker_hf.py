@@ -264,12 +264,13 @@ def main():
         logging_steps=50,
         logging_dir=f"{args.output_dir}/logs",
         
-        # Evaluation
+        # Evaluation and checkpointing
         eval_strategy="epoch",
-        save_strategy="no",  # Don't auto-save during training (we'll save at the end)
+        save_strategy="epoch",
         save_total_limit=3,
-        load_best_model_at_end=False,
-        metric_for_best_model="loss"
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,  # Lower eval_loss is better
         
         # Memory optimization
         gradient_checkpointing=False,
@@ -303,19 +304,21 @@ def main():
     
     trainer.train()
     
-    # 6. Save final model
-    logger.info("\n6. Saving final model...")
+    # 6. Save best model (already loaded by load_best_model_at_end=True)
+    logger.info("\n6. Saving best model...")
     import os
-    output_path = f"{args.output_dir}/final_model"
+    output_path = f"{args.output_dir}/best_model"
     os.makedirs(output_path, exist_ok=True)
     
     # Save using model's save_pretrained (handles tied weights correctly)
     model.model.save_pretrained(output_path, safe_serialization=True)
     tokenizer.save_pretrained(output_path)
+    logger.info(f"Best model saved to: {output_path}")
     
     logger.info("=" * 60)
     logger.info("Training completed!")
-    logger.info(f"Model saved to: {args.output_dir}/final_model")
+    logger.info(f"Checkpoints saved in: {args.output_dir}")
+    logger.info(f"Best model saved to: {args.output_dir}/best_model")
     logger.info("=" * 60)
     
     # Finish WandB run
