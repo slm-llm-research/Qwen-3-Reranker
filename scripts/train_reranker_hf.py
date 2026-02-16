@@ -139,6 +139,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable gradient checkpointing (reduces memory)"
     )
+    parser.add_argument(
+        "--use_compile",
+        action="store_true",
+        help="Use torch.compile for speedup (requires PyTorch 2.0+)"
+    )
+    parser.add_argument(
+        "--use_flash_attn",
+        action="store_true",
+        help="Use flash attention 2 (requires flash-attn package)"
+    )
     
     # Logging arguments
     parser.add_argument(
@@ -185,8 +195,12 @@ def setup_wandb(args: argparse.Namespace):
     logger.info(f"✓ WandB run initialized: {run_name}")
 
 
-def load_model_and_tokenizer(model_name: str) -> tuple:
-    """Load model and tokenizer."""
+def load_model_and_tokenizer(
+    model_name: str,
+    use_flash_attn: bool = False,
+    use_compile: bool = False
+) -> tuple:
+    """Load model and tokenizer with optional optimizations."""
     logger.info(f"Loading model: {model_name}")
     
     # Load tokenizer
@@ -201,11 +215,26 @@ def load_model_and_tokenizer(model_name: str) -> tuple:
         tokenizer.pad_token_id = tokenizer.eos_token_id
     
     # Load model in BF16 for A100
+    model_kwargs = {
+        'torch_dtype': torch.bfloat16,
+        'trust_remote_code': True,
+    }
+    
+    # Add flash attention if requested
+    if use_flash_attn:
+        model_kwargs['attn_implementation'] = 'flash_attention_2'
+        logger.info("  Using Flash Attention 2")
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
+        **model_kwargs
     )
+    
+    # Compile model for speedup (PyTorch 2.0+)
+    if use_compile:
+        logger.info("  Compiling model with torch.compile...")
+        model = torch.compile(model)
+        logger.info("  ✓ Model compiled")
     
     # Get yes/no token IDs
     token_true_id = tokenizer.convert_tokens_to_ids('yes')
@@ -274,9 +303,10 @@ def create_training_args(args: argparse.Namespace) -> TrainingArguments:
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         
-        # Memory optimization
+        # Memory and speed optimization
         gradient_checkpointing=args.gradient_checkpointing,
-        dataloader_num_workers=0,
+        dataloader_num_workers=4,  # Parallel data loading
+        dataloader_pin_memory=True,  # Faster CPU→GPU transfer
         
         # Other
         remove_unused_columns=False,
@@ -309,7 +339,11 @@ def main():
     
     # 1. Load model and tokenizer
     logger.info("\n1. Loading model and tokenizer...")
-    model, tokenizer, token_true_id, token_false_id = load_model_and_tokenizer(args.model_name)
+    model, tokenizer, token_true_id, token_false_id = load_model_and_tokenizer(
+        args.model_name,
+        use_flash_attn=args.use_flash_attn,
+        use_compile=args.use_compile
+    )
     
     # 2. Prepare datasets
     logger.info("\n2. Preparing datasets...")
