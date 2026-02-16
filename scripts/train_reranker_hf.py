@@ -150,6 +150,11 @@ def parse_args():
         help="Output directory"
     )
     parser.add_argument(
+        "--gradient_checkpointing",
+        action="store_true",
+        help="Enable gradient checkpointing (reduces memory, slower training)"
+    )
+    parser.add_argument(
         "--num_epochs",
         type=int,
         default=3,
@@ -274,7 +279,7 @@ def main():
         greater_is_better=False,  # Lower eval_loss is better
         
         # Memory optimization
-        gradient_checkpointing=False,
+        gradient_checkpointing=args.gradient_checkpointing,
         dataloader_num_workers=0,
         
         # Other
