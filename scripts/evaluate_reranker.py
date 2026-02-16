@@ -120,8 +120,9 @@ def evaluate_model(
         false_logits = logits[:, token_false_id]
         scores = torch.sigmoid(true_logits - false_logits)
         
-        all_scores.extend(scores.cpu().numpy().tolist())
-        all_labels.extend(batch['labels'].cpu().numpy().tolist())
+        # Convert to FP32 before numpy (BF16 not supported in numpy)
+        all_scores.extend(scores.float().cpu().numpy().tolist())
+        all_labels.extend(batch['labels'].float().cpu().numpy().tolist())
         
         if (i + 1) % 100 == 0:
             logger.info(f"  Processed {(i + 1) * batch_size}/{len(test_dataset)} samples")
