@@ -226,13 +226,10 @@ def main():
         
         # Evaluation
         eval_strategy="epoch",
-        save_strategy="epoch",
+        save_strategy="no",  # Don't auto-save during training (we'll save at the end)
         save_total_limit=3,
-        load_best_model_at_end=True,
-        metric_for_best_model="loss",
-        
-        # Save format - use PyTorch format to handle tied weights
-        save_safetensors=False,  # Fix for tied embeddings
+        load_best_model_at_end=False,
+        metric_for_best_model="loss"
         
         # Memory optimization
         gradient_checkpointing=False,
@@ -265,10 +262,16 @@ def main():
     
     trainer.train()
     
-    # 6. Save final model
+    # 6. Save final model (manually to avoid tied weights issue)
     logger.info("\n6. Saving final model...")
-    trainer.save_model(f"{args.output_dir}/final_model")
-    tokenizer.save_pretrained(f"{args.output_dir}/final_model")
+    import os
+    output_path = f"{args.output_dir}/final_model"
+    os.makedirs(output_path, exist_ok=True)
+    
+    # Save model weights
+    torch.save(model.model.state_dict(), f"{output_path}/pytorch_model.bin")
+    tokenizer.save_pretrained(output_path)
+    model.model.config.save_pretrained(output_path)
     
     logger.info("=" * 60)
     logger.info("Training completed!")

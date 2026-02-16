@@ -139,12 +139,9 @@ def main():
         
         # Evaluation
         eval_strategy="epoch",
-        save_strategy="epoch",
+        save_strategy="no",  # Don't auto-save during training (we'll save manually)
         save_total_limit=2,
-        load_best_model_at_end=True,
-        
-        # Save format - use PyTorch format to handle tied weights
-        save_safetensors=False,  # Fix for tied embeddings
+        load_best_model_at_end=False
         
         # Other
         remove_unused_columns=False,
@@ -172,11 +169,16 @@ def main():
     
     trainer.train()
     
-    # 6. Save model
+    # 6. Save model (manually to avoid tied weights issue)
     print("\n6. Saving model...")
     output_path = "models/example_checkpoint/final_model"
-    trainer.save_model(output_path)
+    
+    # Save model weights only (not using safetensors)
+    import os
+    os.makedirs(output_path, exist_ok=True)
+    torch.save(model.model.state_dict(), f"{output_path}/pytorch_model.bin")
     tokenizer.save_pretrained(output_path)
+    model.model.config.save_pretrained(output_path)
     print(f"   Saved to {output_path}")
     
     # 7. Test inference
