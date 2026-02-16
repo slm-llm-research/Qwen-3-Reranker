@@ -328,14 +328,14 @@ def main():
     # 4. Compute metrics for both models
     logger.info("\n4. Computing metrics...")
     
-    # Create prediction dataframes
-    test_df_copy = test_df.copy().reset_index(drop=True)
-    test_df_copy = test_df_copy.iloc[:len(base_scores)]  # Match length
+    # Convert test_dataset to dataframe (it has all the original columns)
+    test_results_df = test_dataset.to_pandas()
     
-    base_predictions = test_df_copy.copy()
+    # Add predictions
+    base_predictions = test_results_df[['query', 'relevance']].copy()
     base_predictions['predicted_score'] = base_scores
     
-    finetuned_predictions = test_df_copy.copy()
+    finetuned_predictions = test_results_df[['query', 'relevance']].copy()
     finetuned_predictions['predicted_score'] = finetuned_scores
     
     # Ranking metrics
