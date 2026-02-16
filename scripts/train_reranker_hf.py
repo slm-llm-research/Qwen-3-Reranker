@@ -262,16 +262,15 @@ def main():
     
     trainer.train()
     
-    # 6. Save final model (manually to avoid tied weights issue)
+    # 6. Save final model
     logger.info("\n6. Saving final model...")
     import os
     output_path = f"{args.output_dir}/final_model"
     os.makedirs(output_path, exist_ok=True)
     
-    # Save model weights
-    torch.save(model.model.state_dict(), f"{output_path}/pytorch_model.bin")
+    # Save using model's save_pretrained (handles tied weights correctly)
+    model.model.save_pretrained(output_path, safe_serialization=True)
     tokenizer.save_pretrained(output_path)
-    model.model.config.save_pretrained(output_path)
     
     logger.info("=" * 60)
     logger.info("Training completed!")

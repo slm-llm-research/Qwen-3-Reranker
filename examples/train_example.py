@@ -169,16 +169,16 @@ def main():
     
     trainer.train()
     
-    # 6. Save model (manually to avoid tied weights issue)
+    # 6. Save model
     print("\n6. Saving model...")
     output_path = "models/example_checkpoint/final_model"
     
-    # Save model weights only (not using safetensors)
     import os
     os.makedirs(output_path, exist_ok=True)
-    torch.save(model.model.state_dict(), f"{output_path}/pytorch_model.bin")
+    
+    # Save using model's save_pretrained (handles tied weights correctly)
+    model.model.save_pretrained(output_path, safe_serialization=True)
     tokenizer.save_pretrained(output_path)
-    model.model.config.save_pretrained(output_path)
     print(f"   Saved to {output_path}")
     
     # 7. Test inference
