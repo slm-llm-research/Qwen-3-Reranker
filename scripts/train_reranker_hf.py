@@ -149,6 +149,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use flash attention 2 (requires flash-attn package)"
     )
+    parser.add_argument(
+        "--max_length",
+        type=int,
+        default=2048,
+        help="Maximum sequence length (default: 2048, model supports up to 32768)"
+    )
     
     # Logging arguments
     parser.add_argument(
@@ -352,7 +358,8 @@ def main():
     # 3. Setup Trainer
     logger.info("\n3. Setting up Trainer...")
     training_args = create_training_args(args)
-    data_collator = create_data_collator(tokenizer)
+    data_collator = create_data_collator(tokenizer, max_length=args.max_length)
+    logger.info(f"  Max sequence length: {args.max_length}")
     
     trainer = RerankerTrainer(
         token_true_id=token_true_id,
