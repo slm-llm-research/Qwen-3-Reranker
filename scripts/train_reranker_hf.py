@@ -231,6 +231,9 @@ def main():
         load_best_model_at_end=True,
         metric_for_best_model="loss",
         
+        # Save format - use PyTorch format to handle tied weights
+        save_safetensors=False,  # Fix for tied embeddings
+        
         # Memory optimization
         gradient_checkpointing=False,
         dataloader_num_workers=0,

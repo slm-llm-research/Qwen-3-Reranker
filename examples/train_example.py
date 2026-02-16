@@ -143,6 +143,9 @@ def main():
         save_total_limit=2,
         load_best_model_at_end=True,
         
+        # Save format - use PyTorch format to handle tied weights
+        save_safetensors=False,  # Fix for tied embeddings
+        
         # Other
         remove_unused_columns=False,
         report_to="none",
